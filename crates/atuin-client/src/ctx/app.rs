@@ -28,12 +28,26 @@ impl AppCtx {
     }
 
     /// The atuin-registered active hostname.
+    ///
+    /// Note that this always returns a new owned object as there is no way of knowing whether the
+    /// hostname has changed or not at any given point.
+    ///
+    /// TODO(markovejnovic): A future implementation could have a refresh background task that
+    ///                      refreshes the value periodically, avoiding an allocation.
     #[must_use]
-    pub fn hostname(&self) -> &AtuinHostname {
-        // Note that this queries, unfortunately, all the time, since we never know when the
-        // hostname could change from under us.
+    pub fn hostname(&self) -> AtuinHostname {
+        AtuinHostname::probe()
     }
 
+    /// The atuin-registered active username.
+    ///
+    /// Note that this always returns a new owned object as there is no way of knowing whether the
+    /// hostname has changed or not at any given point.
+    ///
+    /// TODO(markovejnovic): A future implementation could have a refresh background task that
+    ///                      refreshes the value periodically, avoiding an allocation.
     #[must_use]
-    pub fn username(&self) -> &AtuinUsername {}
+    pub fn username(&self) -> AtuinUsername {
+        AtuinUsername::probe()
+    }
 }

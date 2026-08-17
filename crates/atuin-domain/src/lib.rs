@@ -9,6 +9,8 @@
 
 use std::fmt::Display;
 
+use atuin_common::os::Hostname;
+
 /// Defines a new UUID type wrapper
 macro_rules! new_uuid {
     ($name:ident) => {
@@ -71,16 +73,33 @@ pub mod caps;
 pub mod record;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
-pub struct AtuinHostname(String);
+pub struct AtuinHostname(Hostname);
+
+impl AtuinHostname {
+    pub fn probe() -> Self {
+        std::env::var("ATUIN_HOST_NAME")
+            .unwrap_or_else(|_| Hostname::get())
+            .map(Self)
+            .unwrap_or_else(Self::default)
+    }
+}
 
 impl Default for AtuinHostname {
     fn default() -> Self {
-        Self(String::from("unknown-host"))
+        Self(Hostname::try_from("unknown-host").unwrap())
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
 pub struct AtuinUsername(String);
+
+impl AtuinUsername {
+    pub fn probe() -> Self {
+        std::env::var("ATUIN_HOST_USER")
+            .map(Self)
+            .unwrap_or_else(Self::default)
+    }
+}
 
 impl Default for AtuinUsername {
     fn default() -> Self {
@@ -95,7 +114,12 @@ pub struct AtuinHostUser {
 }
 
 impl AtuinHostUser {
-    pub fn probe()
+    pub fn probe() -> Self {
+        Self {
+            hostname: AtuinHostname::probe(),
+            username: AtuinUsername::probe(),
+        }
+    }
 }
 
 impl Display for AtuinHostUser {
