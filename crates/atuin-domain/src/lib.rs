@@ -7,6 +7,8 @@
 //! [`api`] request/response types, and the [`caps`] capability types. These are
 //! shared across the client, the daemon, and the server.
 
+use std::fmt::Display;
+
 /// Defines a new UUID type wrapper
 macro_rules! new_uuid {
     ($name:ident) => {
@@ -67,3 +69,37 @@ macro_rules! new_uuid {
 pub mod api;
 pub mod caps;
 pub mod record;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub struct AtuinHostname(String);
+
+impl Default for AtuinHostname {
+    fn default() -> Self {
+        Self(String::from("unknown-host"))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub struct AtuinUsername(String);
+
+impl Default for AtuinUsername {
+    fn default() -> Self {
+        Self(String::from("unknown-user"))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct AtuinHostUser {
+    pub hostname: AtuinHostname,
+    pub username: AtuinUsername,
+}
+
+impl AtuinHostUser {
+    pub fn probe()
+}
+
+impl Display for AtuinHostUser {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.hostname, self.username)
+    }
+}

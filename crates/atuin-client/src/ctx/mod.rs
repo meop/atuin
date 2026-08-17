@@ -6,9 +6,11 @@
 //! [`app()`]: `ctx::app().workspace().git_root(cwd).await`.
 
 mod app;
+mod git_ctx;
 mod workspace;
 
 pub use app::AppCtx;
+pub use git_ctx::GitRepoCtx;
 pub use workspace::WorkspaceCtx;
 
 use std::sync::LazyLock;

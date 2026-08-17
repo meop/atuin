@@ -75,7 +75,11 @@ pub async fn query_context() -> eyre::Result<Context> {
     let hostname = get_host_user();
     let cwd = utils::get_current_dir();
     let host_id = Settings::host_id().await?;
-    let git_root = crate::ctx::app().workspace().git_root(cwd.as_str()).await;
+    let git_root = crate::ctx::app()
+        .workspace()
+        .and_then(|ws| ws.git_ctx().ok().flatten())
+        .and_then(|git| git.repo.workdir())
+        .map(|path| path.to_path_buf());
 
     Ok(Context {
         session,
