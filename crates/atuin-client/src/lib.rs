@@ -29,5 +29,3 @@ pub mod record;
 pub mod secrets;
 pub mod settings;
 pub mod theme;
-
-mod utils;

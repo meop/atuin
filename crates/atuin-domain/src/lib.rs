@@ -109,6 +109,18 @@ impl Default for AtuinUsername {
     }
 }
 
+impl From<String> for AtuinUsername {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
+impl From<&str> for AtuinUsername {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AtuinHostUser {
     pub hostname: AtuinHostname,
