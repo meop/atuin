@@ -78,9 +78,11 @@ pub struct AtuinHostname(Hostname);
 impl AtuinHostname {
     pub fn probe() -> Self {
         std::env::var("ATUIN_HOST_NAME")
-            .unwrap_or_else(|_| Hostname::get())
+            .ok()
+            .and_then(|name| Hostname::try_from(name.as_str()).ok())
+            .or_else(|| Hostname::get().ok())
             .map(Self)
-            .unwrap_or_else(Self::default)
+            .unwrap_or_default()
     }
 }
 
@@ -97,7 +99,7 @@ impl AtuinUsername {
     pub fn probe() -> Self {
         std::env::var("ATUIN_HOST_USER")
             .map(Self)
-            .unwrap_or_else(Self::default)
+            .unwrap_or_else(|_| Self::default())
     }
 }
 

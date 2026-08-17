@@ -6,7 +6,8 @@ use whoami;
 
 use crate::string::NonNulStr;
 
-pub(crate) struct PosixHostname(String);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub struct PosixHostname(String);
 
 impl PosixHostname {
     const MAX_HOSTNAME_LENGTH: usize = 255;

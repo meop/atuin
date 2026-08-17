@@ -13,8 +13,8 @@ impl AppCtx {
     pub(crate) fn new() -> Self {
         Self {
             workspace: WorkspaceCtx::new()
-                .map(|e| {
-                    warn!(err = e, "Failed to load the current workspace context");
+                .map_err(|e| {
+                    warn!(err = %e, "Failed to load the current workspace context");
                     e
                 })
                 .ok(),
@@ -24,7 +24,7 @@ impl AppCtx {
     /// Information held within the current working directory of atuin.
     #[must_use]
     pub fn workspace(&self) -> Option<&WorkspaceCtx> {
-        self.workspace.map(|f| &f)
+        self.workspace.as_ref()
     }
 
     /// The atuin-registered active hostname.

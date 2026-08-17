@@ -1,6 +1,7 @@
 use crate::string::NonNulStr;
 
-pub(crate) struct WindowsHostname(String);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, derive_more::Display)]
+pub struct WindowsHostname(String);
 
 impl WindowsHostname {
     const MAX_HOSTNAME_LENGTH: usize = 63;

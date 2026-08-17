@@ -57,5 +57,8 @@ impl TryFrom<&str> for DnsHostname {
     }
 }
 
-/// A struct which represents the hostname of an operating system.
-pub struct Hostname;
+#[cfg(unix)]
+pub type Hostname = unix::PosixHostname;
+
+#[cfg(windows)]
+pub type Hostname = windows::WindowsHostname;

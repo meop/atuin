@@ -78,7 +78,7 @@ pub async fn query_context() -> eyre::Result<Context> {
     let git_root = crate::ctx::app()
         .workspace()
         .and_then(|ws| ws.git_ctx().ok().flatten())
-        .and_then(|git| git.repo.workdir())
+        .and_then(|git| git.repo().work_dir())
         .map(|path| path.to_path_buf());
 
     Ok(Context {
@@ -109,7 +109,9 @@ impl Context {
             host_id: String::new(),
             git_root: crate::ctx::app()
                 .workspace()
-                .git_root_blocking(entry.cwd.as_str()),
+                .and_then(|ws| ws.git_ctx().ok().flatten())
+                .and_then(|git| git.repo().work_dir())
+                .map(|path| path.to_path_buf()),
         }
     }
 }

@@ -69,13 +69,11 @@ pub(crate) async fn run(
         None
     };
 
-    let git_root = match std::env::current_dir()
-        .ok()
-        .and_then(|cwd| cwd.into_os_string().into_string().ok())
-    {
-        Some(cwd) => atuin_client::ctx::app().workspace().git_root(&cwd).await,
-        None => None,
-    };
+    let git_root = atuin_client::ctx::app()
+        .workspace()
+        .and_then(|ws| ws.git_ctx().ok().flatten())
+        .and_then(|git| git.repo().work_dir())
+        .map(|path| path.to_path_buf());
 
     let ctx = AppContext {
         endpoint,

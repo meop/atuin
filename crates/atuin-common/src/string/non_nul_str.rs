@@ -35,6 +35,11 @@ impl<T: AsRef<str>> NonNulStr<T> {
     pub fn len(&self) -> usize {
         self.0.as_ref().len()
     }
+
+    /// Whether the wrapped string is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.as_ref().is_empty()
+    }
 }
 
 impl<T: AsRef<str>> Deref for NonNulStr<T> {
