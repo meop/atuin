@@ -71,9 +71,12 @@ pub(crate) async fn run(
 
     let git_root = atuin_client::ctx::app()
         .workspace()
-        .and_then(|ws| ws.git_ctx().ok().flatten())
+        .git_ctx()
+        .await
+        .ok()
+        .flatten()
         .and_then(|git| git.repo().work_dir())
-        .map(|path| path.to_path_buf());
+        .map(|p| p.to_path_buf());
 
     let ctx = AppContext {
         endpoint,

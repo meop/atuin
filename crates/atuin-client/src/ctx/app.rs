@@ -1,30 +1,56 @@
 use super::workspace::WorkspaceCtx;
+use atuin_domain::record::HostId;
 use atuin_domain::{AtuinHostname, AtuinUsername};
-use tracing::warn;
+
+use crate::settings::Settings;
 
 /// Effectively-global application state, constructed once and held by the [`app()`](super::app)
 /// static.
+///
+/// This is the single discoverable entry point for a process's ambient identity and location:
+/// its [`session`](Self::session), [`cwd`](Self::cwd), [`hostname`](Self::hostname),
+/// [`username`](Self::username), [`host_id`](Self::host_id), and [`workspace`](Self::workspace).
 pub struct AppCtx {
-    /// State on the current working directory. [`Option::None`] if it fails to load.
-    workspace: Option<WorkspaceCtx>,
+    /// State on the current working directory.
+    workspace: WorkspaceCtx,
 }
 
 impl AppCtx {
     pub(crate) fn new() -> Self {
         Self {
-            workspace: WorkspaceCtx::new()
-                .map_err(|e| {
-                    warn!(err = %e, "Failed to load the current workspace context");
-                    e
-                })
-                .ok(),
+            workspace: WorkspaceCtx::new(),
         }
     }
 
     /// Information held within the current working directory of atuin.
     #[must_use]
-    pub fn workspace(&self) -> Option<&WorkspaceCtx> {
-        self.workspace.as_ref()
+    pub fn workspace(&self) -> &WorkspaceCtx {
+        &self.workspace
+    }
+
+    /// The current session id, as exported by the shell integration in `ATUIN_SESSION`.
+    ///
+    /// [`None`] when the variable is unset (e.g. atuin invoked outside a hooked shell). Probed
+    /// live, as the value is fixed for the life of a process but set by the environment.
+    #[must_use]
+    pub fn session(&self) -> Option<String> {
+        std::env::var("ATUIN_SESSION").ok()
+    }
+
+    /// The current working directory as atuin records it.
+    ///
+    /// Prefers `$PWD` (preserving symlinks) and falls back to the physical cwd, matching how the
+    /// rest of atuin resolves the recorded directory. Probed live, so it stays correct in
+    /// long-running processes whose directory changes. This is distinct from
+    /// [`WorkspaceCtx::cwd`], which is the physical root at which the workspace was resolved.
+    #[must_use]
+    pub fn cwd(&self) -> String {
+        atuin_common::utils::get_current_dir()
+    }
+
+    /// This device's stable host id, read from (and cached by) the meta store.
+    pub async fn host_id(&self) -> eyre::Result<HostId> {
+        Settings::host_id().await
     }
 
     /// The atuin-registered active hostname.

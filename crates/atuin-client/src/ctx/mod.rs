@@ -3,9 +3,10 @@
 //! A single [`AppCtx`] static holds the crate's effectively-global state (right
 //! now just workspace resolution) so it lives in one discoverable place instead
 //! of being sprinkled across modules as ad-hoc statics. Reach it via
-//! [`app()`]: `ctx::app().workspace().git_root(cwd).await`.
+//! [`app()`]: `ctx::app().workspace().git_ctx().await`.
 
 mod app;
+mod eager_future_cell;
 mod git_ctx;
 mod workspace;
 
