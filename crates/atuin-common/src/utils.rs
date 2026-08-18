@@ -75,15 +75,19 @@ pub fn dotfiles_cache_dir() -> PathBuf {
     data_dir().join("dotfiles").join("cache")
 }
 
-pub fn get_current_dir() -> String {
-    // Prefer PWD environment variable over cwd if available to better support symbolic links
+/// The current working directory, preferring `$PWD` (to better support symbolic links) and
+/// falling back to the physical cwd. [`None`] if neither can be determined.
+pub fn current_dir_opt() -> Option<PathBuf> {
     match env::var("PWD") {
-        Ok(v) => v,
-        Err(_) => match env::current_dir() {
-            Ok(dir) => dir.display().to_string(),
-            Err(_) => String::from(""),
-        },
+        Ok(v) => Some(PathBuf::from(v)),
+        Err(_) => env::current_dir().ok(),
     }
+}
+
+pub fn get_current_dir() -> String {
+    current_dir_opt()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default()
 }
 
 pub fn broken_symlink<P: Into<PathBuf>>(path: P) -> bool {

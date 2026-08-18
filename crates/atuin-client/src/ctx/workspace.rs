@@ -32,7 +32,13 @@ impl WorkspaceCtx {
 
         let discover_from = abs_cwd.clone();
         Self {
-            git_ctx: EagerFutureCell::new(move || GitRepoCtx::new(&discover_from)),
+            // Git discovery is blocking filesystem I/O, so run it on the blocking pool to keep it
+            // off the async executor.
+            git_ctx: EagerFutureCell::new(async move {
+                tokio::task::spawn_blocking(move || GitRepoCtx::new(&discover_from))
+                    .await
+                    .expect("git discovery task panicked")
+            }),
             abs_cwd,
         }
     }

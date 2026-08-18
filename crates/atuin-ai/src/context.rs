@@ -101,7 +101,7 @@ impl ClientContext {
             "os": self.os,
             "shell": self.shell,
             "pwd": if send_cwd {
-                std::env::current_dir().ok().map(|p| p.to_string_lossy().into_owned())
+                atuin_common::utils::current_dir_opt().map(|p| p.to_string_lossy().into_owned())
             } else {
                 None
             },

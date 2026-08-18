@@ -569,7 +569,7 @@ impl Cmd {
         store: SqliteStore,
         history_db: &impl Database,
     ) -> Result<()> {
-        let host_id = Settings::host_id().await?;
+        let host_id = atuin_client::ctx::app().host_id().await?;
         let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)?;
 
         let script_store = ScriptStore::new(store, host_id, encryption_key);

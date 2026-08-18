@@ -67,7 +67,7 @@ impl Cmd {
         let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)
             .context("could not load encryption key")?;
 
-        let host_id = Settings::host_id().await?;
+        let host_id = atuin_client::ctx::app().host_id().await?;
 
         let kv_db = atuin_kv::database::Database::new(settings.kv.db_path.clone(), 1.0).await?;
         let kv_store = KvStore::new(store.clone(), kv_db, host_id, encryption_key);

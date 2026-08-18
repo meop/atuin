@@ -462,7 +462,7 @@ impl AiApp {
                                 .app_ctx
                                 .git_root
                                 .clone()
-                                .or_else(|| std::env::current_dir().ok())
+                                .or_else(atuin_common::utils::current_dir_opt)
                                 .unwrap_or_else(|| PathBuf::from("."));
                             crate::permissions::writer::project_permissions_path(&project_root)
                         }
@@ -591,7 +591,7 @@ impl AiApp {
         let working_dir = tool
             .target_dir()
             .map(|p| p.to_path_buf())
-            .or_else(|| std::env::current_dir().ok())
+            .or_else(atuin_common::utils::current_dir_opt)
             .unwrap_or_else(|| PathBuf::from("."));
 
         ctx.perform(async move {

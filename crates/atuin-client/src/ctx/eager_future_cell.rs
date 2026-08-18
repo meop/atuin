@@ -1,69 +1,73 @@
-//! An eagerly-evaluated, shareable async cell for expensive blocking work.
+//! An eagerly-evaluated, shareable async cell.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 
+use futures::FutureExt;
+use futures::future::Shared;
 use tokio::runtime::Handle;
 use tokio::sync::OnceCell;
-use tokio::task;
 
-/// A cell whose value is computed exactly once, eagerly, in the background.
+/// The work-driving future, type-erased so the cell holds a concrete type. Its `()` output (rather
+/// than `T`) is what lets [`Shared`] apply even when `T` is not `Clone` — the value itself lives in
+/// the [`OnceCell`].
+type Driver = Shared<Pin<Box<dyn Future<Output = ()> + Send>>>;
+
+/// A cell whose value is produced exactly once, eagerly, in the background.
 ///
-/// [`EagerFutureCell::new`] kicks the (blocking) work off on the Tokio blocking pool immediately,
-/// so it overlaps with whatever else the caller does before the value is needed. Retrieve the
-/// result with [`get`](Self::get), which awaits the in-flight computation and then returns a shared
-/// reference to the cached value; concurrent callers all await the same computation.
+/// [`EagerFutureCell::new`] takes an `async` computation and, if a Tokio runtime is available,
+/// begins driving it immediately — so it overlaps with whatever else the caller does before the
+/// value is needed. Retrieve the result with [`get`](Self::get), which awaits the in-flight
+/// computation and returns a shared reference to the cached value; concurrent callers all await the
+/// same computation, which runs at most once.
 ///
 /// If constructed outside a Tokio runtime (for example in a synchronous test), the eager kick is
 /// skipped and the work runs lazily on the first [`get`](Self::get) instead — so the cell is always
-/// usable, never panics on construction, and still computes its value at most once.
+/// usable and never panics on construction.
+///
+/// The computation is async, so the caller chooses how it runs: a naturally-async computation can
+/// be awaited directly, while blocking work should wrap itself in [`tokio::task::spawn_blocking`]
+/// to stay off the executor.
 pub struct EagerFutureCell<T> {
     cell: Arc<OnceCell<T>>,
-    work: Arc<dyn Fn() -> T + Send + Sync>,
+    driver: Driver,
 }
 
 impl<T: Send + Sync + 'static> EagerFutureCell<T> {
-    /// Create the cell and, if a Tokio runtime is available, begin computing `work` in the
-    /// background right away.
-    ///
-    /// `work` is a *blocking* closure (it runs on [`tokio::task::spawn_blocking`]); it must be
-    /// callable more than once so both the eager task and a lazy [`get`](Self::get) can supply it
-    /// to the underlying [`OnceCell`], though it is only ever invoked once.
-    pub fn new<F>(work: F) -> Self
+    /// Create the cell from an `async` computation and, if a Tokio runtime is available, begin
+    /// driving it in the background right away.
+    pub fn new<Fut>(work: Fut) -> Self
     where
-        F: Fn() -> T + Send + Sync + 'static,
+        Fut: Future<Output = T> + Send + 'static,
     {
-        let cell = Arc::new(OnceCell::new());
-        let work: Arc<dyn Fn() -> T + Send + Sync> = Arc::new(work);
+        let cell: Arc<OnceCell<T>> = Arc::new(OnceCell::new());
+
+        // The driver runs `work` once and stores its result. Sharing the driver (not `work`) lets
+        // the eager task and every `get` await the same single execution.
+        let driver: Driver = {
+            let cell = cell.clone();
+            async move {
+                let _ = cell.set(work.await);
+            }
+            .boxed()
+            .shared()
+        };
 
         if let Ok(handle) = Handle::try_current() {
-            let cell = cell.clone();
-            let work = work.clone();
-            handle.spawn(async move {
-                Self::init(&cell, &work).await;
-            });
+            handle.spawn(driver.clone());
         }
 
-        Self { cell, work }
+        Self { cell, driver }
     }
 
-    /// Drive the one-shot initialization. Funnelling both the eager task and [`get`](Self::get)
-    /// through [`OnceCell::get_or_init`] guarantees `work` runs exactly once even if they race.
-    async fn init<'a>(cell: &'a OnceCell<T>, work: &Arc<dyn Fn() -> T + Send + Sync>) -> &'a T {
-        cell.get_or_init(|| {
-            let work = work.clone();
-            async move {
-                task::spawn_blocking(move || work())
-                    .await
-                    .expect("EagerFutureCell work panicked")
-            }
-        })
-        .await
-    }
-
-    /// Await the value, computing it first if the eager kick was skipped or has not yet finished.
-    /// Cheap once resolved.
+    /// Await the value, driving the computation first if the eager kick was skipped or has not yet
+    /// finished. Cheap once resolved.
     pub async fn get(&self) -> &T {
-        Self::init(&self.cell, &self.work).await
+        self.driver.clone().await;
+        self.cell
+            .get()
+            .expect("driver resolved without populating the cell")
     }
 }
 
@@ -77,7 +81,7 @@ mod tests {
     async fn computes_once_and_caches() {
         let calls = Arc::new(AtomicUsize::new(0));
         let counter = calls.clone();
-        let cell = EagerFutureCell::new(move || {
+        let cell = EagerFutureCell::new(async move {
             counter.fetch_add(1, Ordering::SeqCst);
             42usize
         });
@@ -95,7 +99,7 @@ mod tests {
         // value is still computed lazily on first `get`.
         let calls = Arc::new(AtomicUsize::new(0));
         let counter = calls.clone();
-        let cell = EagerFutureCell::new(move || {
+        let cell = EagerFutureCell::new(async move {
             counter.fetch_add(1, Ordering::SeqCst);
             7usize
         });
