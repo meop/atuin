@@ -612,7 +612,7 @@ pub(super) async fn end_history_entry(
 
     let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)
         .context("could not load encryption key")?;
-    let host_id = atuin_client::ctx::app().host_id().await?;
+    let host_id = Settings::host_id().await?;
     let history_store = HistoryStore::new(store.clone(), host_id, encryption_key);
 
     handle_end(&db, store, history_store, settings, id, exit, duration).await
@@ -1014,7 +1014,7 @@ impl Cmd {
         } else {
             let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)
                 .context("could not load encryption key")?;
-            let host_id = atuin_client::ctx::app().host_id().await?;
+            let host_id = Settings::host_id().await?;
             let history_store = HistoryStore::new(store.clone(), host_id, encryption_key);
 
             for entry in matches {
@@ -1067,7 +1067,7 @@ impl Cmd {
         } else {
             let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)
                 .context("could not load encryption key")?;
-            let host_id = atuin_client::ctx::app().host_id().await?;
+            let host_id = Settings::host_id().await?;
             let history_store = HistoryStore::new(store.clone(), host_id, encryption_key);
 
             #[cfg(feature = "daemon")]
@@ -1135,7 +1135,7 @@ impl Cmd {
                 let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)
                     .context("could not load encryption key")?;
 
-                let host_id = atuin_client::ctx::app().host_id().await?;
+                let host_id = Settings::host_id().await?;
                 let history_store = HistoryStore::new(store.clone(), host_id, encryption_key);
 
                 match cmd {

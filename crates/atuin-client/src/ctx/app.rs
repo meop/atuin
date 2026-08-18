@@ -1,28 +1,34 @@
-use super::workspace::WorkspaceCtx;
-use atuin_domain::record::HostId;
-use atuin_domain::{AtuinHostname, AtuinUsername};
+use std::sync::LazyLock;
 
-use crate::settings::Settings;
+use super::workspace::WorkspaceCtx;
+use atuin_domain::{AtuinHostname, AtuinUsername};
 
 /// Effectively-global application state, constructed once and held by the [`app()`](super::app)
 /// static.
 ///
 /// This is the single discoverable entry point for a process's ambient identity and location:
 /// its [`session`](Self::session), [`cwd`](Self::cwd), [`hostname`](Self::hostname),
-/// [`username`](Self::username), [`host_id`](Self::host_id), and [`workspace`](Self::workspace).
+/// [`username`](Self::username), and [`workspace`](Self::workspace).
 pub struct AppCtx {
     /// State on the current working directory.
-    workspace: WorkspaceCtx,
+    ///
+    /// Constructed lazily on first [`workspace`](Self::workspace) access: many commands only need
+    /// identity (session/host/user) and never touch the workspace, so they should not pay for its
+    /// cwd resolution and background git discovery — nor its panic if the cwd is unreadable.
+    workspace: LazyLock<WorkspaceCtx>,
 }
 
 impl AppCtx {
     pub(crate) fn new() -> Self {
         Self {
-            workspace: WorkspaceCtx::new(),
+            workspace: LazyLock::new(WorkspaceCtx::new),
         }
     }
 
     /// Information held within the current working directory of atuin.
+    ///
+    /// The first call resolves the workspace (reads the cwd and kicks off background git
+    /// discovery); subsequent calls are cheap.
     #[must_use]
     pub fn workspace(&self) -> &WorkspaceCtx {
         &self.workspace
@@ -46,11 +52,6 @@ impl AppCtx {
     #[must_use]
     pub fn cwd(&self) -> String {
         atuin_common::utils::get_current_dir()
-    }
-
-    /// This device's stable host id, read from (and cached by) the meta store.
-    pub async fn host_id(&self) -> eyre::Result<HostId> {
-        Settings::host_id().await
     }
 
     /// The atuin-registered active hostname.

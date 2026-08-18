@@ -58,7 +58,7 @@ impl Rebuild {
     ) -> Result<()> {
         let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)?;
 
-        let host_id = atuin_client::ctx::app().host_id().await?;
+        let host_id = Settings::host_id().await?;
         let history_store = HistoryStore::new(store, host_id, encryption_key);
 
         history_store.build(database).await?;
@@ -72,7 +72,7 @@ impl Rebuild {
     async fn rebuild_dotfiles(&self, settings: &Settings, store: SqliteStore) -> Result<()> {
         let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)?;
 
-        let host_id = atuin_client::ctx::app().host_id().await?;
+        let host_id = Settings::host_id().await?;
 
         let alias_store = AliasStore::new(store.clone(), host_id, encryption_key.clone());
         let var_store = VarStore::new(store.clone(), host_id, encryption_key);
@@ -85,7 +85,7 @@ impl Rebuild {
 
     async fn rebuild_scripts(&self, settings: &Settings, store: SqliteStore) -> Result<()> {
         let encryption_key = paseto_v4::Key::try_load_from_path(&settings.key_path)?;
-        let host_id = atuin_client::ctx::app().host_id().await?;
+        let host_id = Settings::host_id().await?;
         let script_store = ScriptStore::new(store, host_id, encryption_key);
         let database =
             atuin_scripts::database::Database::new(settings.scripts.db_path.clone(), 1.0).await?;

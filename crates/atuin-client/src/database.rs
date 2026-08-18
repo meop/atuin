@@ -28,7 +28,7 @@ use atuin_domain::AtuinHostUser;
 use super::{
     history::History,
     ordering,
-    settings::{FilterMode, SearchMode},
+    settings::{FilterMode, SearchMode, Settings},
 };
 
 #[derive(Clone)]
@@ -68,12 +68,14 @@ pub struct OptFilters<'a> {
 /// `ATUIN_SESSION` is unset; the session is left empty so session-scoped
 /// filters simply match nothing.
 pub async fn query_context() -> eyre::Result<Context> {
+    // Touch the workspace up front so its background git discovery overlaps the awaits below
+    // (host_id) rather than starting only when we await git_ctx at the end.
+    let workspace = crate::ctx::app().workspace();
     let session = crate::ctx::app().session().unwrap_or_default();
     let hostname = AtuinHostUser::probe().to_string();
     let cwd = crate::ctx::app().cwd();
-    let host_id = crate::ctx::app().host_id().await?;
-    let git_root = crate::ctx::app()
-        .workspace()
+    let host_id = Settings::host_id().await?;
+    let git_root = workspace
         .git_ctx()
         .await
         .ok()
