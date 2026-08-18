@@ -17,26 +17,22 @@ type Driver = Shared<Pin<Box<dyn Future<Output = ()> + Send>>>;
 /// A cell whose value is produced exactly once, eagerly, in the background.
 ///
 /// [`EagerFutureCell::new`] takes an `async` computation and, if a Tokio runtime is available,
-/// begins driving it immediately — so it overlaps with whatever else the caller does before the
-/// value is needed. Retrieve the result with [`get`](Self::get), which awaits the in-flight
-/// computation and returns a shared reference to the cached value; concurrent callers all await the
-/// same computation, which runs at most once.
+/// begins driving it immediately. Retrieve the result with [`get`](Self::get), which will either:
 ///
-/// If constructed outside a Tokio runtime (for example in a synchronous test), the eager kick is
-/// skipped and the work runs lazily on the first [`get`](Self::get) instead — so the cell is always
-/// usable and never panics on construction.
+///   - Wait for the future to land with the result, returning the result.
+///   - Immediately retrieve the computation if it is successfully cached.
 ///
-/// The computation is async, so the caller chooses how it runs: a naturally-async computation can
-/// be awaited directly, while blocking work should wrap itself in [`tokio::task::spawn_blocking`]
-/// to stay off the executor.
+/// This utility should be used within a Tokio runtime. If constructed outside a Tokio runtime, the
+/// eager load within [`EagerFutureCell::new`] is skipped and the work is performed lazily on the
+/// first [`Self::get`] call.
 pub struct EagerFutureCell<T> {
     cell: Arc<OnceCell<T>>,
     driver: Driver,
 }
 
 impl<T: Send + Sync + 'static> EagerFutureCell<T> {
-    /// Create the cell from an `async` computation and, if a Tokio runtime is available, begin
-    /// driving it in the background right away.
+    /// Initialize the cell with the given `work` future, starting the work immediately if a tokio
+    /// runtime is available.
     pub fn new<Fut>(work: Fut) -> Self
     where
         Fut: Future<Output = T> + Send + 'static,
@@ -61,13 +57,12 @@ impl<T: Send + Sync + 'static> EagerFutureCell<T> {
         Self { cell, driver }
     }
 
-    /// Await the value, driving the computation first if the eager kick was skipped or has not yet
-    /// finished. Cheap once resolved.
+    /// Fetch the value, awaiting the work if necessary.
     pub async fn get(&self) -> &T {
         self.driver.clone().await;
         self.cell
             .get()
-            .expect("driver resolved without populating the cell")
+            .expect("cell value was never populated. likely the work future panicked.")
     }
 }
 

@@ -22,18 +22,44 @@ pub struct Diff {
     pub remote: Option<RecordIdx>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Host {
     pub id: HostId,
-    pub name: String,
 }
 
 impl Host {
     pub fn new(id: HostId) -> Self {
-        Host {
-            id,
-            name: String::new(),
+        Host { id }
+    }
+}
+
+// `Host` once carried a free-form `name: String` beside its `id`. That name was never populated
+// (always ""), never read, and never persisted, so the field is gone. It does, however, still
+// occupy a slot in two serialized layouts we must not break: the v0 JSON record sync API (this
+// impl) and the packfile msgpack codec (`atuin_client::packfile`). So we keep emitting an empty
+// `name`, and accept records whether or not one is present, to stay compatible with peers on
+// either side of the removal.
+impl Serialize for Host {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("Host", 2)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("name", "")?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Host {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        struct HostRepr {
+            id: HostId,
+            // Accepted for wire compatibility, then discarded.
+            #[serde(default, rename = "name")]
+            _name: Option<String>,
         }
+        let HostRepr { id, _name } = HostRepr::deserialize(deserializer)?;
+        Ok(Host { id })
     }
 }
 
@@ -701,6 +727,33 @@ mod tests {
         let _ = enc2
             .decrypt(&key)
             .expect_err("tampering with the id should result in auth failure");
+    }
+
+    /// `Host` dropped its `name` field, but the v0 JSON record sync API still expects the
+    /// `{"id":..,"name":..}` shape. Serializing must keep emitting an (empty) `name` so older
+    /// peers can deserialize our records. Do *not* "simplify" this to drop `name`.
+    #[test]
+    fn host_json_shape_keeps_empty_name() {
+        let host = Host::new(HostId(Uuid::from_u128(2)));
+        assert_eq!(
+            serde_json::to_string(&host).unwrap(),
+            r#"{"id":"00000000-0000-0000-0000-000000000002","name":""}"#
+        );
+    }
+
+    /// The reverse direction: records from any peer must deserialize whether they carry a `name`
+    /// (older peers) or omit it (newer peers). Either way the field is discarded.
+    #[test]
+    fn host_deserializes_with_or_without_name() {
+        let id = r#""00000000-0000-0000-0000-000000000002""#;
+        let expected = Host::new(HostId(Uuid::from_u128(2)));
+
+        let with_name: Host =
+            serde_json::from_str(&format!(r#"{{"id":{id},"name":"anything"}}"#)).unwrap();
+        let without_name: Host = serde_json::from_str(&format!(r#"{{"id":{id}}}"#)).unwrap();
+
+        assert_eq!(with_name, expected);
+        assert_eq!(without_name, expected);
     }
 
     #[test]
