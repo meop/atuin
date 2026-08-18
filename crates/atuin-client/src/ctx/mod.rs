@@ -6,13 +6,12 @@
 //! [`app()`]: `ctx::app().workspace().git_ctx().await`.
 
 mod app;
-mod eager_future_cell;
 mod git_ctx;
 mod workspace;
 
 pub use app::AppCtx;
 pub use git_ctx::GitRepoCtx;
-pub use workspace::WorkspaceCtx;
+pub use workspace::{Cwd, WorkspaceCtx};
 
 use std::sync::LazyLock;
 

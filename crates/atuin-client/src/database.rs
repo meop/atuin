@@ -73,7 +73,7 @@ pub async fn query_context() -> eyre::Result<Context> {
     let workspace = crate::ctx::app().workspace();
     let session = crate::ctx::app().session().unwrap_or_default();
     let hostname = AtuinHostUser::probe().to_string();
-    let cwd = crate::ctx::app().cwd();
+    let cwd = workspace.cwd().to_string();
     let host_id = Settings::host_id().await?;
     let git_root = workspace
         .git_ctx()

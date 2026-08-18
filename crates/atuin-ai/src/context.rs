@@ -101,7 +101,7 @@ impl ClientContext {
             "os": self.os,
             "shell": self.shell,
             "pwd": if send_cwd {
-                atuin_common::utils::current_dir_opt().map(|p| p.to_string_lossy().into_owned())
+                Some(atuin_client::ctx::app().workspace().cwd().to_string())
             } else {
                 None
             },

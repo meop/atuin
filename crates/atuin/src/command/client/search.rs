@@ -333,7 +333,7 @@ async fn run_non_interactive(
 ) -> Result<Vec<History>> {
     let current_dir;
     let dir = if filter_options.cwd == Some(".") {
-        current_dir = atuin_client::ctx::app().cwd();
+        current_dir = atuin_client::ctx::app().workspace().cwd().to_string();
         Some(current_dir.as_str())
     } else {
         filter_options.cwd

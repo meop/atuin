@@ -191,7 +191,7 @@ async fn run_inline_tui(
         }
     };
 
-    let cwd = atuin_common::utils::current_dir_opt().map(|p| p.to_string_lossy().into_owned());
+    let cwd = Some(atuin_client::ctx::app().workspace().cwd().to_string());
     let git_root_str = ctx
         .git_root
         .as_ref()
@@ -283,10 +283,15 @@ async fn run_inline_tui(
     let snapshot_store = crate::snapshots::SnapshotStore::open(snapshot_dir).ok();
 
     // ─── Discover skills ───────────────────────────────────────
-    let project_root = ctx
-        .git_root
-        .clone()
-        .or_else(atuin_common::utils::current_dir_opt);
+    let project_root = ctx.git_root.clone().or_else(|| {
+        Some(
+            atuin_client::ctx::app()
+                .workspace()
+                .cwd()
+                .as_ref()
+                .to_path_buf(),
+        )
+    });
     let skill_registry = crate::skills::SkillRegistry::discover(project_root.as_deref()).await;
 
     // ─── Resume notice (frozen at startup) ──────────────────────

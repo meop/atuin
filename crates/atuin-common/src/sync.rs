@@ -1,4 +1,4 @@
-//! An eagerly-evaluated, shareable async cell.
+//! Synchronization primitives.
 
 use std::future::Future;
 use std::pin::Pin;

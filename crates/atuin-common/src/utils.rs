@@ -1,4 +1,3 @@
-use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -75,21 +74,6 @@ pub fn dotfiles_cache_dir() -> PathBuf {
     data_dir().join("dotfiles").join("cache")
 }
 
-/// The current working directory, preferring `$PWD` (to better support symbolic links) and
-/// falling back to the physical cwd. [`None`] if neither can be determined.
-pub fn current_dir_opt() -> Option<PathBuf> {
-    match env::var("PWD") {
-        Ok(v) => Some(PathBuf::from(v)),
-        Err(_) => env::current_dir().ok(),
-    }
-}
-
-pub fn get_current_dir() -> String {
-    current_dir_opt()
-        .map(|p| p.display().to_string())
-        .unwrap_or_default()
-}
-
 pub fn broken_symlink<P: Into<PathBuf>>(path: P) -> bool {
     let path = path.into();
     path.is_symlink() && !path.exists()
@@ -145,6 +129,7 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_ne;
     use rstest::rstest;
+    use std::env;
 
     #[cfg(not(windows))]
     #[test]

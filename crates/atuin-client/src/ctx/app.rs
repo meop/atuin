@@ -5,16 +5,9 @@ use atuin_domain::{AtuinHostname, AtuinUsername};
 
 /// Effectively-global application state, constructed once and held by the [`app()`](super::app)
 /// static.
-///
-/// This is the single discoverable entry point for a process's ambient identity and location:
-/// its [`session`](Self::session), [`cwd`](Self::cwd), [`hostname`](Self::hostname),
-/// [`username`](Self::username), and [`workspace`](Self::workspace).
 pub struct AppCtx {
-    /// State on the current working directory.
-    ///
-    /// Constructed lazily on first [`workspace`](Self::workspace) access: many commands only need
-    /// identity (session/host/user) and never touch the workspace, so they should not pay for its
-    /// cwd resolution and background git discovery — nor its panic if the cwd is unreadable.
+    /// Constructed lazily since some subcommands of atuin don't need workspace-specific
+    /// information, sowe can save the some cycles.
     workspace: LazyLock<WorkspaceCtx>,
 }
 
@@ -25,10 +18,7 @@ impl AppCtx {
         }
     }
 
-    /// Information held within the current working directory of atuin.
-    ///
-    /// The first call resolves the workspace (reads the cwd and kicks off background git
-    /// discovery); subsequent calls are cheap.
+    /// A workspace is the current working directory that atuin is invoked in.
     #[must_use]
     pub fn workspace(&self) -> &WorkspaceCtx {
         &self.workspace
@@ -41,17 +31,6 @@ impl AppCtx {
     #[must_use]
     pub fn session(&self) -> Option<String> {
         std::env::var("ATUIN_SESSION").ok()
-    }
-
-    /// The current working directory as atuin records it.
-    ///
-    /// Prefers `$PWD` (preserving symlinks) and falls back to the physical cwd, matching how the
-    /// rest of atuin resolves the recorded directory. Probed live, so it stays correct in
-    /// long-running processes whose directory changes. This is distinct from
-    /// [`WorkspaceCtx::cwd`], which is the physical root at which the workspace was resolved.
-    #[must_use]
-    pub fn cwd(&self) -> String {
-        atuin_common::utils::get_current_dir()
     }
 
     /// The atuin-registered active hostname.
