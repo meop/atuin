@@ -39,6 +39,12 @@ buildflags = ["--release"]
 [package.metadata.rpm.targets]
 atuin = { path = "/usr/bin/atuin" }
 
+[package.metadata.wix]
+upgrade-guid = "47E2D473-9AE4-4841-B501-86627A923D54"
+path-guid = "6EF3146F-80A0-4247-BC09-4E9F3584D37B"
+license = false
+eula = false
+
 [features]
 default = [
     "client",

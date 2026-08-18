@@ -10,6 +10,12 @@ license = { workspace = true }
 homepage = { workspace = true }
 repository = { workspace = true }
 
+[package.metadata.wix]
+upgrade-guid = "81B5F75D-E03A-4A73-83AD-0F0D908CD4C4"
+path-guid = "4BD1A0CC-50D3-425A-A630-1564BEFCE9AF"
+license = false
+eula = false
+
 [lib]
 name = "atuin_server"
 path = "src/lib.rs"
