@@ -45,6 +45,10 @@ host = "aarch64-apple-darwin"
 runner = "depot-macos-26"
 host = "aarch64-apple-darwin"
 
+[dist.github-custom-runners.aarch64-pc-windows-msvc]
+runner = "windows-11-arm"
+host = "aarch64-pc-windows-msvc"
+
 # Pin the actions dist generates into release.yml. Without these, `dist generate`
 # emits the versions baked into dist 0.31.0 (checkout@v6, upload-artifact@v6,
 # download-artifact@v7, attest-build-provenance@v3) and `dist plan` fails CI as
