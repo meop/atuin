@@ -57,3 +57,29 @@ jobs:
         with:
           name: cargo-dist-plan
           path: plan-dist-manifest.json
+
+  generated-package:
+    name: cargo-dist generated Windows ARM64 package
+    runs-on: ubuntu-22.04
+    container:
+      image: messense/cargo-xwin
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Install cargo-dist
+        shell: sh
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.sh | sh
+      - name: Package exactly as the generated release workflow plans
+        shell: sh
+        run: |
+          mkdir -p target/distrib
+          dist plan --output-format=json > target/distrib/plan-dist-manifest.json
+          dist build --artifacts=local --target=aarch64-pc-windows-msvc --output-format=json > dist-manifest.json
+      - name: Upload cargo-dist manifests
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-windows-arm64-cargo-dist-manifests
+          path: "*-manifest.json"
