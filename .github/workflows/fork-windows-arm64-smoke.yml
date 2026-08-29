@@ -1,0 +1,59 @@
+name: Fork Windows ARM64 smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Fork branch containing the cargo-dist target change
+        required: true
+        default: windows-arm64-release-runner-test
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  native-build:
+    name: native Windows ARM64 build and package
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Build Atuin natively
+        run: cargo build --locked --release --target aarch64-pc-windows-msvc
+      - name: Install cargo-dist
+        shell: bash
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.sh | sh
+      - name: Plan and package the ARM64 artifacts
+        shell: bash
+        run: |
+          dist plan --output-format=json > plan-dist-manifest.json
+          dist build --artifacts=local --target=aarch64-pc-windows-msvc --output-format=json > dist-manifest.json
+      - name: Upload cargo-dist manifests
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-arm64-cargo-dist-manifests
+          path: "*-manifest.json"
+
+  dist-plan:
+    name: cargo-dist plan
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+          persist-credentials: false
+      - name: Install cargo-dist
+        shell: bash
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.sh | sh
+      - name: Generate cargo-dist plan
+        run: dist plan --output-format=json > plan-dist-manifest.json
+      - name: Upload cargo-dist plan
+        uses: actions/upload-artifact@v7
+        with:
+          name: cargo-dist-plan
+          path: plan-dist-manifest.json
