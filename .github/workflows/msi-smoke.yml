@@ -1,0 +1,99 @@
+# Fork-only: build the Windows MSIs with cargo-dist (dist build, as the release
+# workflow's build jobs do) on the runner each target uses, then install each
+# on a matching Windows runner. Includes the native Windows ARM64 target.
+name: msi-smoke
+
+on:
+  push:
+    branches: [winget-wix-smoke]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install dist 0.31.0
+        shell: pwsh
+        run: irm https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.ps1 | iex
+      - name: WiX on this runner
+        shell: pwsh
+        run: |
+          "WIX: $env:WIX"
+          Get-Command candle.exe, light.exe -ErrorAction SilentlyContinue | ForEach-Object Source
+      - name: dist build
+        shell: pwsh
+        run: dist build --artifacts=local --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-msi
+          path: target/distrib/*.msi
+          if-no-files-found: error
+
+  install-test:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            machine: 0x8664
+          - os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            machine: 0xAA64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: ${{ matrix.target }}-msi
+      - name: Install, check, and uninstall the MSI
+        shell: pwsh
+        run: |
+          $msi = (Get-ChildItem *.msi | Select-Object -First 1).FullName
+          "msi: $msi"
+          function Invoke-Msi($verb, $log) {
+            $p = Start-Process msiexec -ArgumentList "$verb `"$msi`" /qn /l*v $log" -Wait -PassThru
+            if ($p.ExitCode -ne 0) { Get-Content $log -Tail 40; throw "msiexec $verb failed: $($p.ExitCode)" }
+          }
+          Invoke-Msi '/i' install.log
+          $exe = Join-Path $env:ProgramFiles 'atuin\bin\atuin.exe'
+          if (-not (Test-Path $exe)) { Get-ChildItem "$env:ProgramFiles\atuin" -Recurse | Select-Object -First 10 FullName; throw "not installed at $exe" }
+          if ((Get-Item $exe).LinkType) { throw 'atuin.exe is a link, not a file' }
+          $bytes = [IO.File]::ReadAllBytes($exe)
+          $machine = [BitConverter]::ToUInt16($bytes, [BitConverter]::ToInt32($bytes, 0x3C) + 4)
+          "PE machine: 0x{0:X4}" -f $machine
+          if ($machine -ne ${{ matrix.machine }}) { throw 'unexpected PE machine type' }
+          $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          if ($machinePath -notlike '*\atuin\bin*') { throw 'atuin\bin is not on the machine PATH' }
+          $env:Path = $machinePath   # what a new session, SSH included, gets
+          (Get-Command atuin).Source
+          atuin --version
+          if ($LASTEXITCODE -ne 0) { throw 'atuin --version failed' }
+          if (-not (Get-Service sshd -ErrorAction SilentlyContinue)) { Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 | Out-Null }
+          Start-Service sshd
+          $key = Join-Path $env:TEMP 'smoke_ed25519'
+          cmd /c ('ssh-keygen -q -t ed25519 -N "" -f "{0}"' -f $key)
+          $auth = 'C:\ProgramData\ssh\administrators_authorized_keys'
+          Get-Content "$key.pub" | Set-Content $auth -Encoding ascii
+          icacls $auth /inheritance:r /grant 'Administrators:F' /grant 'SYSTEM:F' | Out-Null
+          ssh -i $key -o StrictHostKeyChecking=no -o BatchMode=yes "$env:USERNAME@localhost" 'atuin --version'
+          if ($LASTEXITCODE -ne 0) { throw 'atuin failed over SSH after the MSI install' }
+          Invoke-Msi '/x' uninstall.log
+          if (Test-Path $exe) { throw 'atuin.exe remains after uninstall' }
+          if ([Environment]::GetEnvironmentVariable('Path', 'Machine') -like '*\atuin\bin*') { throw 'PATH entry remains after uninstall' }
+          'install, PATH lookup, SSH, and uninstall OK'
