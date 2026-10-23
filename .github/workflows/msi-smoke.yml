@@ -89,6 +89,9 @@ jobs:
           $exe = Join-Path $env:ProgramFiles 'atuin\bin\atuin.exe'
           if (-not (Test-Path $exe)) { Get-ChildItem "$env:ProgramFiles\atuin" -Recurse | Select-Object -First 10 FullName; throw "not installed at $exe" }
           if ((Get-Item $exe).LinkType) { throw 'atuin.exe is a link, not a file' }
+          $license = Join-Path $env:ProgramFiles 'atuin\LICENSE'
+          if (-not (Test-Path $license)) { Get-ChildItem "$env:ProgramFiles\atuin" | Select-Object FullName; throw "no license at $license" }
+          Get-Content $license -TotalCount 3
           $bytes = [IO.File]::ReadAllBytes($exe)
           $machine = [BitConverter]::ToUInt16($bytes, [BitConverter]::ToInt32($bytes, 0x3C) + 4)
           "PE machine: 0x{0:X4}" -f $machine
@@ -110,5 +113,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'atuin failed over SSH after the MSI install' }
           Invoke-Msi '/x' uninstall.log
           if (Test-Path $exe) { throw 'atuin.exe remains after uninstall' }
+          if (Test-Path $license) { throw 'LICENSE remains after uninstall' }
           if ([Environment]::GetEnvironmentVariable('Path', 'Machine') -like '*\atuin\bin*') { throw 'PATH entry remains after uninstall' }
-          'install, PATH lookup, SSH, and uninstall OK'
+          'install, license, PATH lookup, SSH, and uninstall OK'
