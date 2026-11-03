@@ -1,0 +1,69 @@
+name: Fork Windows ARM64 MSI smoke
+
+on:
+  push:
+    branches: [dist/windows-arm64-msi-smoke]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: same steps as the generated release job
+    runs-on: windows-11-arm
+    timeout-minutes: 60
+    steps:
+      - name: enable windows longpaths
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install pandoc
+        if: runner.os == 'Windows'
+        uses: pandoc/actions/setup@v1
+        with:
+          version: "3.12.1"
+      - name: Generate the MSI license page
+        if: runner.os == 'Windows'
+        shell: bash
+        run: pandoc --from=commonmark --to=rtf --standalone --output=crates/atuin/wix/License.rtf LICENSE
+      - name: Install WiX 3.14.1
+        if: runner.os == 'Windows' && runner.arch == 'ARM64'
+        shell: pwsh
+        run: |
+          $zip = "$env:RUNNER_TEMP\wix314-binaries.zip"
+          Invoke-WebRequest https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip -OutFile $zip
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          if ($sha -ne '6ac824e1642d6f7277d0ed7ea09411a508f6116ba6fae0aa5f2c7daa2ff43d31') { throw "sha256 $sha" }
+          Expand-Archive $zip "$env:RUNNER_TEMP\wix\bin"
+          "WIX=$env:RUNNER_TEMP\wix\" >> $env:GITHUB_ENV
+          "$env:RUNNER_TEMP\wix\bin" >> $env:GITHUB_PATH
+      - name: Install cargo-dist
+        shell: bash
+        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.sh | sh
+      - name: dist build
+        shell: bash
+        run: dist build --artifacts=local --target=aarch64-pc-windows-msvc --print=linkage --output-format=json > dist-manifest.json
+      - name: List artifacts
+        shell: pwsh
+        run: Get-ChildItem target/distrib | ForEach-Object { "RESULT artifact $($_.Name) $($_.Length)" }
+      - name: Install and run the MSI in both scopes
+        shell: pwsh
+        run: |
+          $msi = (Resolve-Path target/distrib/atuin-aarch64-pc-windows-msvc.msi).Path
+          function Arp { @(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue | Where-Object DisplayName -match '^Atuin') }
+          foreach ($scope in @(@{n='per-user';a=@();d="$env:LOCALAPPDATA\Programs\atuin"}, @{n='per-machine';a=@('ALLUSERS=1');d="$env:ProgramFiles\atuin"})) {
+            $p = Start-Process msiexec.exe -ArgumentList (@('/i', "`"$msi`"", '/qn') + $scope.a) -Wait -PassThru
+            "RESULT $($scope.n) install exit=$($p.ExitCode) entries=$((Arp).Count)"
+            $exe = Join-Path $scope.d 'bin\atuin.exe'
+            $bytes = [IO.File]::ReadAllBytes($exe); $pe = [BitConverter]::ToInt32($bytes, 0x3c)
+            "RESULT $($scope.n) exe=$exe machine=0x$(([BitConverter]::ToUInt16($bytes, $pe + 4)).ToString('x4'))"
+            $saved = $env:PATH; $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+            $o = & $exe --version
+            "RESULT $($scope.n) version: $o exit=$LASTEXITCODE"
+            if ($LASTEXITCODE -ne 0) { throw 'atuin --version failed' }
+            $env:PATH = $saved
+            $p = Start-Process msiexec.exe -ArgumentList '/x', "`"$msi`"", '/qn' -Wait -PassThru
+            "RESULT $($scope.n) uninstall exit=$($p.ExitCode) entries=$((Arp).Count) still=$(Test-Path $exe)"
+          }
